@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Calendar 3.0</string>
+    <string name="previous">Back</string>
+    <string name="image">The calendar image</string>
+    <string name="next">Continue</string>
+</resources>

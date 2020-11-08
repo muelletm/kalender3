@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Calendari 3.0</string>
+    <string name="next">Endavant</string>
+    <string name="previous">Enrere</string>
+    <string name="image">La imatge del calendari</string>
+</resources>

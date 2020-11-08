@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Calendario 3.0</string>
+    <string name="previous">Atrás</string>
+    <string name="next">Adelante</string>
+    <string name="image">La imagen del calendario</string>
+</resources>
