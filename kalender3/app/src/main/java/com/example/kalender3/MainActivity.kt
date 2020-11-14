@@ -8,12 +8,15 @@ import android.graphics.ColorMatrixColorFilter
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
+import android.util.Log
 import android.view.Window
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
 import com.github.chrisbanes.photoview.PhotoView
+import java.lang.RuntimeException
+import java.lang.reflect.Field
 import java.util.*
 
 
@@ -23,40 +26,126 @@ class MainActivity : Activity() {
     private var MAX_DAY = 24;
     private var OVERRIDE_COUNT = 5;
 
-    data class DayInfo(
-        var day: Int = 0,
-        var door: Int = 0,
-        var photo: Int = 0,
-        var image: Int = 0,
-        var audio: Int? = null
+    enum class ResourceType {
+        IMAGE,
+        AUDIO
+    }
+
+    data class ResourceItem(
+        val resource_id: Int,
+        val resource_type: ResourceType
     )
 
-    private var DAYS = arrayOf(
-        DayInfo(1, R.drawable.door_01, R.drawable.image_01, R.drawable.image_01_laia),
-        DayInfo(2, R.drawable.door_02, R.drawable.image_02, R.drawable.image_02_emma),
-        DayInfo(3, R.drawable.door_03, R.drawable.image_03, R.drawable.image_03_laia, R.raw.twinkle_twinkle),
-        DayInfo(4, R.drawable.door_04, R.drawable.image_04, R.drawable.image_04_emma),
-        DayInfo(5, R.drawable.door_05, R.drawable.image_05, R.drawable.image_05_laia),
-        DayInfo(6, R.drawable.door_06, R.drawable.image_06, R.drawable.image_06_laia, R.raw.tannenbaum),
-        DayInfo(7, R.drawable.door_07, R.drawable.image_07, R.drawable.image_07_emma),
-        DayInfo(8, R.drawable.door_08, R.drawable.image_08, R.drawable.image_08_emma),
-        DayInfo(9, R.drawable.door_09, R.drawable.image_09, R.drawable.image_09_emma, R.raw.eurovision),
-        DayInfo(10, R.drawable.door_10, R.drawable.image_10, R.drawable.image_10_thomas),
-        DayInfo(11, R.drawable.door_11, R.drawable.image_11, R.drawable.image_11_laia),
-        DayInfo(12, R.drawable.door_12, R.drawable.image_12, R.drawable.image_12_laia, R.raw.rudolf),
-        DayInfo(13, R.drawable.door_13, R.drawable.image_13, R.drawable.image_13_emma),
-        DayInfo(14, R.drawable.door_14, R.drawable.image_14, R.drawable.image_14_thomas),
-        DayInfo(15, R.drawable.door_15, R.drawable.image_15, R.drawable.image_15_elena, R.raw.kumbaya),
-        DayInfo(16, R.drawable.door_16, R.drawable.image_16, R.drawable.image_16_emma),
-        DayInfo(17, R.drawable.door_17, R.drawable.image_17, R.drawable.image_17_archive),
-        DayInfo(18, R.drawable.door_18, R.drawable.image_18, R.drawable.image_18_archive, R.raw.burrito_sabanero),
-        DayInfo(19, R.drawable.door_19, R.drawable.image_19, R.drawable.image_19_thomas),
-        DayInfo(20, R.drawable.door_20, R.drawable.image_20, R.drawable.image_20_elena),
-        DayInfo(21, R.drawable.door_21, R.drawable.image_21, R.drawable.image_21_laia, R.raw.fruehling_lang),
-        DayInfo(22, R.drawable.door_22, R.drawable.image_22, R.drawable.image_22_emma),
-        DayInfo(23, R.drawable.door_23, R.drawable.image_23, R.drawable.image_23_emma),
-        DayInfo(24, R.drawable.door_24, R.drawable.image_24, R.drawable.image_24_emma, R.raw.china_gong)
+    data class DayInfo(
+            var day: Int = 0,
+            var door: Int = 0,
+            var resources: List<ResourceItem>,
+            var audio: Int? = null
     )
+
+    private var _days : Array<DayInfo>? = null;
+
+    private enum class FineResourceType {
+        DOOR,
+        IMAGE,
+        AUDIO,
+    }
+
+    private data class DayResources(
+            var door: Int?,
+            var resources: MutableList<ResourceItem>
+    )
+
+    private fun parseName(name: String): Pair<Int, FineResourceType>? {
+        var parts = name.split("_")
+        if (parts.size < 2) {
+            Log.w("Init", "Cannot split: ${name}")
+            return null
+        }
+        var day = parts[1].toIntOrNull()
+        if (day == null || day < 1 || day > 24) {
+            Log.w("Init", "Cannot parse as day: ${parts[1]}")
+            return null
+        }
+        when(parts[0]) {
+            "door" -> {
+                return Pair(day, FineResourceType.DOOR)
+            }
+            "image" -> {
+                return Pair(day, FineResourceType.IMAGE)
+            }
+            "audio" -> {
+                return Pair(day, FineResourceType.AUDIO)
+            }
+            else -> {
+                Log.w("Init", "Unknown type: ${parts[0]}")
+                return null
+            }
+        }
+    }
+
+    private fun processField(field: Field, resourceList: MutableList<DayResources>) {
+        var resourceId = field.getInt(null)
+        var name = resources.getResourceEntryName(resourceId)
+        var parsedName = parseName(name)
+        if (parsedName == null) {
+            Log.w("Init", "Cannot parse name: $name")
+            return
+        }
+        var day = resourceList[parsedName.first - 1]
+        when (parsedName.second) {
+            FineResourceType.DOOR -> {
+                day.door = resourceId
+            }
+            FineResourceType.IMAGE -> {
+                day.resources.add(ResourceItem(resourceId, ResourceType.IMAGE))
+            }
+            FineResourceType.AUDIO -> {
+                day.resources.add(ResourceItem(resourceId, ResourceType.AUDIO))
+            }
+        }
+    }
+
+    private fun getDrawableResource() : List<DayResources>
+    {
+        var resourceList = mutableListOf<DayResources>();
+        for (i in 1..24) {
+            resourceList.add(DayResources(null, mutableListOf()))
+        }
+        val drawablesFields: Array<Field> = R.drawable::class.java.fields
+        for (field in drawablesFields) {
+            processField(field, resourceList)
+        }
+        val rawFields: Array<Field> = R.raw::class.java.fields
+        for (field in rawFields) {
+            processField(field, resourceList)
+        }
+        return resourceList
+    }
+
+    private fun GetDays() : Array<DayInfo> {
+        var infos = mutableListOf<DayInfo>();
+
+        val resourceList = getDrawableResource()
+
+        for (i in resourceList.indices) {
+            var drawable = resourceList.get(i)
+            var day = i + 1
+
+            if (drawable.door == null) {
+                throw RuntimeException("No door for day: $day")
+            }
+            if (drawable.resources.isEmpty()) {
+                throw RuntimeException("No image for day: $day")
+            }
+
+            var door: Int = drawable.door!!
+            var dayInfo = DayInfo(day, door, drawable.resources)
+            infos.add(dayInfo);
+        }
+
+        return infos.toTypedArray()
+    }
 
     override fun onSaveInstanceState(savedInstanceState: Bundle) {
         super.onSaveInstanceState(savedInstanceState)
@@ -69,6 +158,7 @@ class MainActivity : Activity() {
         requestWindowFeature(Window.FEATURE_NO_TITLE)
 
         setContentView(R.layout.activity_main)
+        _days = GetDays()
 
         _day = getInitDay()
         _overrideCounter = 0
@@ -142,15 +232,30 @@ class MainActivity : Activity() {
         return day <= getCurrentDay()
     }
 
-    private fun showImageDialog(resource: Int, other: () -> Unit) {
+    private fun showDialog(resources: List<ResourceItem>, index: Int) {
+        if (index >= resources.size) {
+            return
+        }
+        val resource = resources.get(index)
+        when (resource.resource_type) {
+            ResourceType.IMAGE -> {
+                showImageDialog(resources, index)
+            }
+            ResourceType.AUDIO -> {
+                showAudioDialog(resources, index)
+            }
+        }
+    }
+
+    private fun showImageDialog(resources: List<ResourceItem>, index: Int) {
         val builder = AlertDialog.Builder(this@MainActivity)
         val view = layoutInflater.inflate(R.layout.dialog_custom, null)
         val photoView = view.findViewById<PhotoView>(R.id.imageView)
-        photoView.setImageResource(resource)
+        photoView.setImageResource(resources.get(index).resource_id)
         builder.setView(view)
         val mDialog = builder.create()
         mDialog.setOnDismissListener {
-            other()
+            showDialog(resources, index + 1)
         }
         photoView.setOnClickListener {
             mDialog.dismiss()
@@ -158,12 +263,12 @@ class MainActivity : Activity() {
         mDialog.show()
     }
 
-    private fun showAudioDialog(resource: Int, other: () -> Unit) {
+    private fun showAudioDialog(resources: List<ResourceItem>, index: Int) {
         val builder = AlertDialog.Builder(this@MainActivity)
         val view = layoutInflater.inflate(R.layout.audio_dialog, null)
         var playButton = view.findViewById<Button>(R.id.play);
         var seekBar = view.findViewById<SeekBar>(R.id.seekBar)
-        var mp = MediaPlayer.create(this, resource);
+        var mp = MediaPlayer.create(this, resources.get(index).resource_id);
 
 
         builder.setView(view)
@@ -199,7 +304,7 @@ class MainActivity : Activity() {
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
 
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                if(mp != null && fromUser){
+                if (mp != null && fromUser) {
                     mp.seekTo(progress * sampleSize);
                 }
             }
@@ -215,7 +320,7 @@ class MainActivity : Activity() {
             if (mp.isPlaying) {
                 mp.stop()
             }
-            other()
+            showDialog(resources, index + 1)
         }
 
         view.setOnClickListener {
@@ -225,21 +330,19 @@ class MainActivity : Activity() {
     }
 
     private fun openDoor() {
-        val index = _day - 1
-        var dayInfo = DAYS[index]
-        showImageDialog(dayInfo.image, {showImageDialog(dayInfo.photo, {
-            var audio = dayInfo.audio
-            if (audio != null) {
-                showAudioDialog(audio, {})
-            }
-        })})
+        var dayInfo = getDay(_day)
+        showDialog(dayInfo.resources, 0)
+    }
+
+    private fun getDay(day: Int) : DayInfo {
+        return _days!![(day - 1) % _days!!.size]
     }
 
     private fun update() {
         val dayView = findViewById<TextView>(R.id.day_view)
         dayView.text =_day.toString()
         val imageView = findViewById<ImageView>(R.id.image)
-        imageView.setImageResource(DAYS[(_day - 1) % DAYS.size].door)
+        imageView.setImageResource(getDay(_day).door)
         if (!canOpen(_day)) {
             // Set image to black & white.
             val matrix = ColorMatrix()
