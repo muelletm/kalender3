@@ -16,7 +16,7 @@ There is a simple naming scheme that will be used to assign resources to a
 specific day and resource type.
 
 The schema is `{type}_{day}[_.*].extension`. 
-Where type is one of `door`, `image`, `audio` and day is an integer (with optional leading zeros.).
+Where type is one of `door`, `image`, `audio` and day is an integer (with optional leading zeros).
 
 These are some valid examples:
 
@@ -24,5 +24,8 @@ These are some valid examples:
  * `door_17.jpg`
  * `audio_05_a_christmas_song.ogg`
  
-The `door` resource will be used to represent the doors of each day.
+The `door` resources will be used to represent the doors of each day.
 Images and audio files are the hidden suprises.
+
+To function the app needs a door for each day from 1 to 24 and at least one
+image or audio file.
