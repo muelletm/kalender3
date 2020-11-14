@@ -39,7 +39,7 @@ for file in $(find $small -name "*.jpg"); do
 
 done
 
-ANDROID_DIR="/home/thomas/projects/kalender3/kalender3"
+ANDROID_DIR="$dir/../../kalender3"
 DRAWABLE="${ANDROID_DIR}/app/src/main/res/drawable"
 cp $small/*.jpg "${DRAWABLE}"
 
